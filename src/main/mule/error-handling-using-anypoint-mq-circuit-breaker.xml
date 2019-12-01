@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:anypoint-mq="http://www.mulesoft.org/schema/mule/anypoint-mq"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/anypoint-mq http://www.mulesoft.org/schema/mule/anypoint-mq/current/mule-anypoint-mq.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	
+	<flow name="error-handling-using-anypoint-mq-circuit-breaker-flow" doc:id="3f2790c7-ea8a-450c-bb7b-fe96b4118a49" >
+		<anypoint-mq:subscriber doc:name="fetch-message-from-queue" doc:id="b2ba1372-63e3-4f7d-b075-a0fdf0f9954c" config-ref="Anypoint_MQ_Config" destination="mqtest" acknowledgementMode="MANUAL"/>
+		<logger level="INFO" doc:name="after consuming message" doc:id="1d79ae80-ce96-476d-a67f-75318e8f490f" message="After consuming message: #[message]"/>
+		<ee:transform doc:name="set-parameters" doc:id="a7c2c959-897f-4e39-a308-d782bb03d6a7" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="ackToken" ><![CDATA[%dw 2.0
+output application/java
+---
+attributes.ackToken]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="callin-external-service-flow" doc:id="43483863-b0f4-40d9-84ec-9393b56f5818" name="callin-external-service-flow"/>
+		<logger level="INFO" doc:name="log before ack" doc:id="5ab1865d-aeb7-464f-9563-6e835a7eda42" message="log before ack #[message]"/>
+		<anypoint-mq:ack doc:name="ack" doc:id="e5b34a0e-6021-466f-a231-08035454cf6d" config-ref="Anypoint_MQ_Config" ackToken="#[vars.ackToken]"/>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="a447c7f6-670c-4e1f-8234-a54286cad851" type="HTTP:CONNECTIVITY, HTTP:TIMEOUT">
+				<logger level="INFO" doc:name="log before Nack" doc:id="f828f859-8bf0-45b6-bd46-7d32a9209199" message="log before Nack : #[message]"/>
+				<anypoint-mq:nack doc:name="nack" doc:id="9b5cf856-b36f-495c-8923-cb879c28b5fb" config-ref="Anypoint_MQ_Config" ackToken="#[vars.ackToken]"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="4ad5e73a-0767-4c82-b399-17bade7fb2f1" type="ANY">
+				<logger level="INFO" doc:name="message before error ack" doc:id="89f900ba-d850-4ba0-a91e-5f7d071d571d" message="message before error ack #[message]"/>
+				<anypoint-mq:ack doc:name="ack" doc:id="69bb0ac9-e560-4f52-a72c-ce349dc8217b" config-ref="Anypoint_MQ_Config" ackToken="#[vars.ackToken]"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<sub-flow name="callin-external-service-flow" doc:id="9aecc92c-e2d0-48bd-a4b9-0c607931a769" >
+		<http:request method="GET" doc:name="call-external-service" doc:id="7f96df44-a502-42bb-b76d-afda231b403e" config-ref="HTTP_Request_configuration" path="/api/apikit-login?name=Manish"/>
+	</sub-flow>
+</mule>
